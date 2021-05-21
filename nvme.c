@@ -2726,6 +2726,7 @@ static int get_feature(int argc, char **argv, struct command *cmd, struct plugin
 	const char *cdw11 = "dword 11 for interrupt vector config";
 	const char *human_readable = "show feature in readable format";
 	int err, fd;
+	int i;
 
 	struct feat_cfg cfg = {
 		.namespace_id = 0,
