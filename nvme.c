@@ -2698,7 +2698,8 @@ static int get_feature_id(int fd, struct feat_cfg cfg)
 		} else if (buf)
 			d_raw(buf, cfg.data_len);
 	} else if (err > 0) {
-		nvme_show_status(err);
+		if (err != NVME_SC_INVALID_FIELD)
+			nvme_show_status(err);
 	} else
 		perror("get-feature");
 
@@ -2726,6 +2727,9 @@ static int get_feature(int argc, char **argv, struct command *cmd, struct plugin
 	const char *cdw11 = "dword 11 for interrupt vector config";
 	const char *human_readable = "show feature in readable format";
 	int err, fd;
+	int i;
+	int feat_max = NVMF_FEAT_MAX;
+	int feat_num = 0;
 
 	struct feat_cfg cfg = {
 		.namespace_id = 0,
@@ -2768,13 +2772,18 @@ static int get_feature(int argc, char **argv, struct command *cmd, struct plugin
 		goto close_fd;
 	}
 
-	if (!cfg.feature_id) {
-		fprintf(stderr, "feature-id required param\n");
-		err = -EINVAL;
-		goto close_fd;
+	if (cfg.feature_id)
+		feat_max = cfg.feature_id + 1;
+
+	for (i = cfg.feature_id; i < feat_max; i++, feat_num++) {
+		cfg.feature_id = i;
+		err = get_feature_id(fd, cfg);
+		if (err && err != NVME_SC_INVALID_FIELD)
+			break;
 	}
 
-	err = get_feature_id(fd, cfg);
+	if (err == NVME_SC_INVALID_FIELD && feat_num == 1)
+		nvme_show_status(err);
 
 close_fd:
 	close(fd);
