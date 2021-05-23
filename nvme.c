@@ -2658,7 +2658,6 @@ ret:
 	return nvme_status_to_errno(err, false);
 }
 
-
 static int get_feature_id(int fd, struct feat_cfg cfg)
 {
 	int err;
@@ -2682,26 +2681,38 @@ static int get_feature_id(int fd, struct feat_cfg cfg)
 		memset(buf, 0, cfg.data_len);
 	}
 
-	err = nvme_get_feature(fd, cfg.namespace_id, cfg.feature_id, cfg.sel, cfg.cdw11,
-			cfg.data_len, buf, &result);
+	err = nvme_get_feature(fd, cfg.namespace_id, cfg.feature_id,
+			       cfg.sel == 8 ? 0 : cfg.sel, cfg.cdw11,
+			       cfg.data_len, buf, &result);
+
+	if (!err && cfg.sel == 8)
+		err = nvme_get_feature(fd, cfg.namespace_id, cfg.feature_id,
+				       1, cfg.cdw11, cfg.data_len, buf,
+				       &result);
+
+
 	if (!err) {
 		if (!cfg.raw_binary || !buf) {
-			printf("get-feature:%#02x (%s), %s value:%#08x\n", cfg.feature_id,
-				nvme_feature_to_string(cfg.feature_id),
-				nvme_select_to_string(cfg.sel), result);
+			printf("get-feature:%#02x (%s), %s value:%#08x\n",
+			       cfg.feature_id,
+			       nvme_feature_to_string(cfg.feature_id),
+			       nvme_select_to_string(cfg.sel), result);
 			if (cfg.sel == 3)
 				nvme_show_select_result(result);
 			else if (cfg.human_readable)
-				nvme_feature_show_fields(cfg.feature_id, result, buf);
+				nvme_feature_show_fields(cfg.feature_id, result,
+							 buf);
 			else if (buf)
 				d(buf, cfg.data_len, 16, 1);
-		} else if (buf)
+		} else if (buf) {
 			d_raw(buf, cfg.data_len);
+		}
 	} else if (err > 0) {
 		if (err != NVME_SC_INVALID_FIELD)
 			nvme_show_status(err);
-	} else
+	} else {
 		perror("get-feature");
+	}
 
 	free(buf);
 
@@ -2766,7 +2777,7 @@ static int get_feature(int argc, char **argv, struct command *cmd, struct plugin
 		}
 	}
 
-	if (cfg.sel > 7) {
+	if (cfg.sel > 8) {
 		fprintf(stderr, "invalid 'select' param:%d\n", cfg.sel);
 		err = -EINVAL;
 		goto close_fd;
@@ -2778,7 +2789,7 @@ static int get_feature(int argc, char **argv, struct command *cmd, struct plugin
 	for (i = cfg.feature_id; i < feat_max; i++, feat_num++) {
 		cfg.feature_id = i;
 		err = get_feature_id(fd, cfg);
-		if (err && err != NVME_SC_INVALID_FIELD)
+		if (err != NVME_SC_INVALID_FIELD)
 			break;
 	}
 
