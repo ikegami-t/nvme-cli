@@ -2759,7 +2759,8 @@ static int get_feature_id(int fd, struct feat_cfg cfg)
 		} else if (buf)
 			d_raw(buf, cfg.data_len);
 	} else if (err > 0) {
-		nvme_show_status(err);
+		if (err != NVME_SC_INVALID_FIELD)
+			nvme_show_status(err);
 	} else {
 		perror("get-feature");
 	}
@@ -2790,6 +2791,9 @@ static int get_feature(int argc, char **argv, struct command *cmd, struct plugin
 	const char *uuid_index = "specify uuid index";
 	int err;
 	int fd;
+	int i;
+	int feat_max = 0x100;
+	int feat_num = 0;
 
 	struct feat_cfg cfg = {
 		.feature_id   = 0,
@@ -2834,11 +2838,8 @@ static int get_feature(int argc, char **argv, struct command *cmd, struct plugin
 		goto close_fd;
 	}
 
-	if (!cfg.feature_id) {
-		fprintf(stderr, "feature-id required param\n");
-		err = -EINVAL;
-		goto close_fd;
-	}
+	if (cfg.feature_id)
+		feat_max = cfg.feature_id + 1;
 
 	if (cfg.uuid_index > 128) {
 		fprintf(stderr, "invalid uuid index param: %u\n", cfg.uuid_index);
@@ -2847,7 +2848,15 @@ static int get_feature(int argc, char **argv, struct command *cmd, struct plugin
 		goto close_fd;
 	}
 
-	err = get_feature_id(fd, cfg);
+	for (i = cfg.feature_id; i < feat_max; i++, feat_num++) {
+		cfg.feature_id = i;
+		err = get_feature_id(fd, cfg);
+		if (err && err != NVME_SC_INVALID_FIELD)
+			break;
+	}
+
+	if (err == NVME_SC_INVALID_FIELD && feat_num == 1)
+		nvme_show_status(err);
 
 close_fd:
 	close(fd);
