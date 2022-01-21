@@ -33,4 +33,6 @@ static inline uint64_t mmio_read64(void *addr)
 	return ((uint64_t) high << 32) | low;
 }
 
+#define fallthrough do {} while (0)
+
 #endif
